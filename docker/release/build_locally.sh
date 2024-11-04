@@ -27,6 +27,6 @@ sed "s#_version_#${VERSION}#" base/Dockerfile.in > base/Dockerfile
 
 # Build images
 for part in base registrar verifier tenant; do
-  docker buildx build -t keylime_${part}:${VERSION} -f "${part}/Dockerfile" --security-opt label=disable --progress plain ${@:3} "$KEYLIME_DIR"
+  podman build -t keylime_${part}:${VERSION} -f "${part}/Dockerfile" --security-opt label=disable --progress plain ${@:3} "$KEYLIME_DIR"
   rm -f ${part}/Dockerfile
 done

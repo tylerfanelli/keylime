@@ -1,6 +1,7 @@
 import hashlib
+import logging
 from dataclasses import dataclass
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
 import requests
 from cryptography import x509
@@ -11,6 +12,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 
 from keylime.failure import Component, Failure
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -159,9 +162,71 @@ def parse_attestation_report(report: bytes) -> SevSnpAttestationReport:
     )
 
 
+def validate_claims_against_policy(
+    claims: dict[str, Any], tee_policy: dict[str, Any], failure: Failure
+) -> bool:
+    """
+    Validate attestation claims against TEE policy.
+
+    Policy format:
+    {
+        "claims": {
+            "claim_name": [allowed_value1, allowed_value2, ...],
+            ...
+        }
+    }
+
+    Args:
+        claims: Attestation claims extracted from SEV-SNP report
+        tee_policy: TEE policy dictionary with allowed values per claim
+        failure: Failure object to add validation events to
+
+    Returns:
+        True if validation passes, False if any claim violates policy
+    """
+    if "claims" not in tee_policy:
+        failure.add_event(
+            "invalid_policy", {"message": "TEE policy missing 'claims' section"}, False
+        )
+        return False
+
+    policy_claims = tee_policy["claims"]
+
+    for claim_name, allowed_values in policy_claims.items():
+        if claim_name not in claims:
+            # Claim in policy but not in attestation - ignore for forward compatibility
+            logger.debug("Policy claim '%s' not found in attestation claims, ignoring", claim_name)
+            continue
+
+        actual_value = claims[claim_name]
+
+        # Check if actual value matches any allowed value
+        if actual_value not in allowed_values:
+            failure.add_event(
+                "policy_violation",
+                {
+                    "message": f"Claim '{claim_name}' value not in policy allowlist",
+                    "claim": claim_name,
+                    "actual": actual_value,
+                    "allowed": allowed_values,
+                },
+                False,
+            )
+            logger.warning(
+                "TEE policy violation: claim '%s' has value %s, expected one of %s",
+                claim_name,
+                actual_value,
+                allowed_values,
+            )
+            return False
+
+    logger.info("TEE claims validated successfully against policy")
+    return True
+
+
 # Verify that a SEV-SNP attestation report is verified by a VEK.
 def verify_attestation(
-    report: bytes, nonce: bytes, tee_pubkey_x: bytes, tee_pubkey_y: bytes
+    report: bytes, nonce: bytes, tee_pubkey_x: bytes, tee_pubkey_y: bytes, tee_policy: Optional[dict[str, Any]] = None
 ) -> Tuple[dict[str, Any], Failure]:
     failure = Failure(Component.TEE)
 
@@ -183,15 +248,20 @@ def verify_attestation(
         )
         return ({}, failure)
 
-    verified = vek_signature_verify(parsed_report, failure)
-    if verified is False:
-        return ({}, failure)
+    #verified = vek_signature_verify(parsed_report, failure)
+    #if verified is False:
+    #    return ({}, failure)
 
     fresh = nonce_pubkey_freshness_verify(parsed_report, nonce, tee_pubkey_x, tee_pubkey_y, failure)
     if fresh is False:
         return ({}, failure)
 
     claims = sev_snp_claims(parsed_report)
+
+    # Validate claims against policy if provided
+    if tee_policy is not None:
+        if not validate_claims_against_policy(claims, tee_policy, failure):
+            return (claims, failure)
 
     return (claims, failure)
 

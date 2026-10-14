@@ -1,0 +1,13 @@
+{
+  "meta": {
+    "version": "1.0"
+  },
+  "claims": {
+    "reported_tcb_snp": [8, 9, 10],
+    "reported_tcb_microcode": [93, 94, 95],
+    "policy_debug_allowed": [false],
+    "policy_smt_allowed": [false, true],
+    "platform_smt_enabled": [false],
+    "platform_tsme_enabled": [true, false]
+  }
+}

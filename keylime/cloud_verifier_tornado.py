@@ -56,7 +56,7 @@ from keylime.shared_data import (
     get_cached_policy,
     initialize_agent_policy_cache,
 )
-from keylime.tee import snp
+from keylime.tee import snp, tee_policy
 
 try:
     multiprocessing.set_start_method("fork")
@@ -2142,8 +2142,19 @@ class VerifyEvidenceHandler(BaseHandler):
             logger.warning("POST returning 400 response. missing query parameter 'snp-report'")
             return (claims, failure)
 
+        # Load TEE policy from configuration
+        policy = None
+        policy_path = config.get("verifier", "tee_policy_path", fallback=None)
+        if policy_path:
+            try:
+                policy = tee_policy.load_tee_policy(policy_path)
+                logger.debug("TEE policy loaded for verification")
+            except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+                logger.error("Failed to load TEE policy from %s: %s. Skipping policy validation.", policy_path, e)
+                # Continue without policy validation
+
         try:
-            (claims, failure) = snp.verify_attestation(report, nonce, x_b64, y_b64)
+            (claims, failure) = snp.verify_attestation(report, nonce, x_b64, y_b64, policy)
 
             return (claims, failure)
         except Exception as e:

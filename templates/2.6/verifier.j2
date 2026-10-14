@@ -224,6 +224,13 @@ measured_boot_imports = {{ verifier.measured_boot_imports }}
 # always          : Bootlog evaluation will always be done (i.e. for unlimited times).
 measured_boot_evaluate = {{ verifier.measured_boot_evaluate }}
 
+# Path to the TEE attestation claims policy file (JSON format).
+# This policy specifies the acceptable values for attestation claims extracted
+# from TEE attestation reports (e.g., SEV-SNP measurements, TCB versions, policy flags).
+# If not configured or the file doesn't exist, TEE claim validation is skipped.
+# Example: /var/lib/keylime/tee-policy.json
+tee_policy_path = {{ verifier.tee_policy_path }}
+
 # Severity labels for revocation events strictly ordered from least severity to
 # highest severity.
 severity_labels = {{ verifier.severity_labels }}

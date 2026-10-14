@@ -1,0 +1,8 @@
+{
+  "meta": {
+    "version": "1.0"
+  },
+  "claims": {
+    "policy_debug_allowed": [false]
+  }
+}
